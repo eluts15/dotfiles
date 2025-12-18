@@ -1,232 +1,245 @@
-
--- ensure the packer plugin manager is installed
-local ensure_packer = function()
-  local fn = vim.fn
-  local install_path = fn.stdpath("data") .. "/site/pack/packer/start/packer.nvim"
-  if fn.empty(fn.glob(install_path)) > 0 then
-    fn.system({ "git", "clone", "--depth", "1", "https://github.com/wbthomason/packer.nvim", install_path })
-    vim.cmd([[packadd packer.nvim]])
-    return true
+-- Bootstrap lazy.nvim
+local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+if not (vim.uv or vim.loop).fs_stat(lazypath) then
+  local lazyrepo = "https://github.com/folke/lazy.nvim.git"
+  local out = vim.fn.system({ "git", "clone", "--filter=blob:none", "--branch=stable", lazyrepo, lazypath })
+  if vim.v.shell_error ~= 0 then
+    vim.api.nvim_echo({
+      { "Failed to clone lazy.nvim:\n", "ErrorMsg" },
+      { out, "WarningMsg" },
+      { "\nPress any key to exit..." },
+    }, true, {})
+    vim.fn.getchar()
+    os.exit(1)
   end
-  return false
 end
+vim.opt.rtp:prepend(lazypath)
 
-local packer_bootstrap = ensure_packer()
+-- Options
+vim.opt.completeopt = {'menuone', 'noselect', 'noinsert'}
+vim.opt.shortmess = vim.opt.shortmess + { c = true}
+vim.api.nvim_set_option('updatetime', 300)
+vim.opt.number = true
+vim.opt.relativenumber = false
+vim.opt.signcolumn = 'yes'
+vim.opt.wrap = false  -- Don't wrap lines
+vim.opt.display = 'lastline'  -- Show as much of last line as possible instead of @
 
-require("packer").startup(function(use)
-  -- Packer can manage itself
-  use("wbthomason/packer.nvim")
-  -- Collection of common configurations for the Nvim LSP client
-  use("neovim/nvim-lspconfig")
-  -- Visualize lsp progress
-  use({
-    "j-hui/fidget.nvim",
+-- Treesitter folding
+-- Treesitter folding (disabled by default)
+vim.wo.foldmethod = 'expr'
+vim.wo.foldexpr = 'nvim_treesitter#foldexpr()'
+vim.opt.foldenable = false  -- Start with folds open
+vim.opt.foldlevel = 99  -- Open all folds by default
+-- Setup lazy.nvim
+require("lazy").setup({
+  -- Mason
+  {
+    "williamboman/mason.nvim",
     config = function()
-      require("fidget").setup()
-    end
-  })
+      require("mason").setup({
+        ui = {
+          icons = {
+            package_installed = "✓",
+            package_pending = "➜",
+            package_uninstalled = "✗",
+          },
+        }
+      })
+    end,
+  },
+  {
+    "williamboman/mason-lspconfig.nvim",
+    dependencies = { "williamboman/mason.nvim" },
+    config = function()
+      require('mason-lspconfig').setup({})
+    end,
+  },
 
+  -- LSP
+  "neovim/nvim-lspconfig",
 
-  -- Autocompletion framework
-  use("hrsh7th/nvim-cmp")
-  use({
-    -- cmp LSP completion
-    "hrsh7th/cmp-nvim-lsp",
-    -- cmp Snippet completion
-    "hrsh7th/cmp-vsnip",
-    -- cmp Path completion
-    "hrsh7th/cmp-path",
-    "hrsh7th/cmp-buffer",
-    after = { "hrsh7th/nvim-cmp" },
-    requires = { "hrsh7th/nvim-cmp" },
-  })
-  -- See hrsh7th other plugins for more great completion sources!
-  -- Snippet engine
-  use('hrsh7th/vim-vsnip')
-  -- Adds extra functionality over rust analyzer
-  use("simrat39/rust-tools.nvim")
+  -- Rust
+  {
+    'mrcjkb/rustaceanvim',
+    version = '^5',
+    lazy = false,
+    ft = { 'rust' },
+  },
 
-  -- Optional
-  use("ellisonleao/gruvbox.nvim")
-  use("nvim-lua/popup.nvim")
-  use("nvim-lua/plenary.nvim")
-  use("nvim-telescope/telescope.nvim")
+  -- Treesitter
+  {
+    "nvim-treesitter/nvim-treesitter",
+    build = ":TSUpdate",
+  },
 
-  use {
-    'nvim-lualine/lualine.nvim',
-    requires = { 'nvim-tree/nvim-web-devicons', opt = true }
-  }
-
-  use ("nvim-treesitter/nvim-treesitter")
-
-  use("rust-lang/rustfmt")
-  use("rust-lang/rust.vim")
-
-  -- Some color scheme other then default  
-  -- use("arcticicestudio/nord-vim")
-end)
-
--- the first run will install packer and our plugins
-if packer_bootstrap then
-  require("packer").sync()
-  return
-end
-
--- Set completeopt to have a better completion experience
--- :help completeopt
--- menuone: popup even when there's only one match
--- noinsert: Do not insert text until a selection is made
--- noselect: Do not auto-select, nvim-cmp plugin will handle this for us.
-vim.o.completeopt = "menuone,noinsert,noselect"
-vim.opt.swapfile = false
-vim.wo.number = true
-vim.g.rustfmt_autosave = 1
-
---{
---	'rust-lang/rust.vim',
---	ft = { "rust" },
---	config = function()
---		vim.g.rustfmt_autosave = 1
---		vim.g.rustfmt_emit_files = 1
---		vim.g.rustfmt_fail_silently = 0
---		vim.g.rust_clip_command = 'wl-copy'
---	end
---},
-
-vim.cmd 'colorscheme gruvbox'
-
-
--- Avoid showing extra messages when using completion
-vim.opt.shortmess = vim.opt.shortmess + "c"
-
-local function on_attach(client, buffer)
-  -- This callback is called when the LSP is atttached/enabled for this buffer
-  -- we could set keymaps related to LSP, etc here.
-end
-
--- Configure LSP through rust-tools.nvim plugin.
--- rust-tools will configure and enable certain LSP features for us.
--- See https://github.com/simrat39/rust-tools.nvim#configuration
-local opts = {
-  tools = {
-    runnables = {
-      use_telescope = true,
-      
-    },
-    inlay_hints = {
-      auto = true,
-      show_parameter_hints = false,
-      parameter_hints_prefix = "",
-      other_hints_prefix = "",
+  -- Completion
+  {
+    "hrsh7th/nvim-cmp",
+    dependencies = {
+      "hrsh7th/cmp-nvim-lsp",
+      "hrsh7th/cmp-nvim-lua",
+      "hrsh7th/cmp-nvim-lsp-signature-help",
+      "hrsh7th/cmp-vsnip",
+      "hrsh7th/cmp-path",
+      "hrsh7th/cmp-buffer",
+      "hrsh7th/vim-vsnip",
     },
   },
 
-  -- all the opts to send to nvim-lspconfig
-  -- these override the defaults set by rust-tools.nvim
-  -- see https://github.com/neovim/nvim-lspconfig/blob/master/CONFIG.md#rust_analyzer
-  server = {
-    -- on_attach is a callback called when the language server attachs to the buffer
-    on_attach = on_attach,
-    settings = {
-      -- to enable rust-analyzer settings visit:
-      -- https://github.com/rust-analyzer/rust-analyzer/blob/master/docs/user/generated_config.adoc
-      ["rust-analyzer"] = {
-        -- enable clippy on save
-        checkOnSave = {
-          command = "clippy"
+  -- Colorscheme
+  {
+    "ellisonleao/gruvbox.nvim",
+    priority = 1000,
+    config = function()
+      require("gruvbox").setup({
+        terminal_colors = true,
+        undercurl = true,
+        underline = true,
+        bold = true,
+        italic = {
+          strings = true,
+          emphasis = true,
+          comments = true,
+          operators = false,
+          folds = true,
         },
-      },
+        strikethrough = true,
+        invert_selection = false,
+        invert_signs = false,
+        invert_tabline = false,
+        invert_intend_guides = false,
+        inverse = true,
+        contrast = "",
+        palette_overrides = {},
+        overrides = {},
+        dim_inactive = false,
+        transparent_mode = false,
+      })
+      
+      vim.cmd("colorscheme gruvbox")
+      
+      -- Fix all highlights after colorscheme loads
+      vim.cmd([[
+        highlight! LineNr guifg=#928374 guibg=NONE
+        highlight! CursorLineNr guifg=#fabd2f guibg=NONE gui=bold
+        highlight! SignColumn guibg=NONE
+        
+        highlight! NormalFloat guifg=#ebdbb2 guibg=#282828
+        highlight! FloatBorder guifg=#928374 guibg=#282828
+        
+        highlight! DiagnosticError guifg=#fb4934 guibg=NONE
+        highlight! DiagnosticWarn guifg=#fabd2f guibg=NONE
+        highlight! DiagnosticInfo guifg=#83a598 guibg=NONE
+        highlight! DiagnosticHint guifg=#8ec07c guibg=NONE
+        
+        highlight! link DiagnosticFloatingError NormalFloat
+        highlight! link DiagnosticFloatingWarn NormalFloat
+        highlight! link DiagnosticFloatingInfo NormalFloat
+        highlight! link DiagnosticFloatingHint NormalFloat
+      ]])
+    end,
+  },
+})
+
+-- Rust Setup with rustaceanvim
+vim.g.rustaceanvim = {
+  tools = {},
+  server = {
+    on_attach = function(client, bufnr)
+      vim.keymap.set("n", "<C-space>", function()
+        vim.cmd.RustLsp({'hover', 'actions'})
+      end, { buffer = bufnr, desc = "Rust hover actions" })
+      
+      vim.keymap.set("n", "<Leader>a", function()
+        vim.cmd.RustLsp('codeAction')
+      end, { buffer = bufnr, desc = "Rust code actions" })
+    end,
+    default_settings = {
+      ['rust-analyzer'] = {},
     },
   },
+  dap = {},
 }
 
-
-
-require('lualine').setup {
-  options = {
-    icons_enabled = true,
-    theme = 'auto',
-    component_separators = { left = '', right = '🍺'},
-    section_separators = { left = '💣', right = '🔥'},
-    disabled_filetypes = {
-      statusline = {},
-      winbar = {},
+-- LSP Diagnostics Configuration
+vim.diagnostic.config({
+  virtual_text = false,
+  signs = {
+    text = {
+      [vim.diagnostic.severity.ERROR] = '',
+      [vim.diagnostic.severity.WARN] = '',
+      [vim.diagnostic.severity.HINT] = '',
+      [vim.diagnostic.severity.INFO] = '',
     },
-    ignore_focus = {},
-    always_divide_middle = true,
-    globalstatus = false,
-    refresh = {
-      statusline = 1000,
-      tabline = 1000,
-      winbar = 1000,
-    }
   },
-  sections = {
-    lualine_a = {'mode'},
-    lualine_b = {'branch', 'diff', 'diagnostics'},
-    lualine_c = {'filename'},
-    lualine_x = {'encoding', 'fileformat', 'filetype'},
-    lualine_y = {'progress'},
-    lualine_z = {'location'}
+  update_in_insert = true,
+  underline = true,
+  severity_sort = false,
+  float = {
+    border = 'rounded',
+    source = 'always',
+    header = '',
+    prefix = '',
+    focusable = false,
+    style = 'minimal',
+    format = function(diagnostic)
+      return string.format("%s", diagnostic.message)
+    end,
   },
-  inactive_sections = {
-    lualine_a = {},
-    lualine_b = {},
-    lualine_c = {'filename'},
-    lualine_x = {'location'},
-    lualine_y = {},
-    lualine_z = {}
-  },
-  tabline = {},
-  winbar = {},
-  inactive_winbar = {},
-  extensions = {}
-}
+})
 
+-- Show diagnostics on cursor hold
+vim.cmd([[
+autocmd CursorHold * lua vim.diagnostic.open_float(nil, { focusable = false, scope = "cursor" })
+]])
 
-
-require("rust-tools").setup(opts)
-
--- Setup Completion
--- See https://github.com/hrsh7th/nvim-cmp#basic-configuration
-local cmp = require("cmp")
+-- Completion Plugin Setup
+local cmp = require'cmp'
 cmp.setup({
-  preselect = cmp.PreselectMode.None,
   snippet = {
     expand = function(args)
       vim.fn["vsnip#anonymous"](args.body)
     end,
   },
   mapping = {
-    ["<C-p>"] = cmp.mapping.select_prev_item(),
-    ["<C-n>"] = cmp.mapping.select_next_item(),
-    -- Add tab support
-    ["<S-Tab>"] = cmp.mapping.select_prev_item(),
-    ["<Tab>"] = cmp.mapping.select_next_item(),
-    ["<C-d>"] = cmp.mapping.scroll_docs(-4),
-    ["<C-f>"] = cmp.mapping.scroll_docs(4),
-    ["<C-Space>"] = cmp.mapping.complete(),
-    ["<C-e>"] = cmp.mapping.close(),
-    ["<CR>"] = cmp.mapping.confirm({
+    ['<C-p>'] = cmp.mapping.select_prev_item(),
+    ['<C-n>'] = cmp.mapping.select_next_item(),
+    ['<S-Tab>'] = cmp.mapping.select_prev_item(),
+    ['<Tab>'] = cmp.mapping.select_next_item(),
+    ['<C-S-f>'] = cmp.mapping.scroll_docs(-4),
+    ['<C-f>'] = cmp.mapping.scroll_docs(4),
+    ['<C-Space>'] = cmp.mapping.complete(),
+    ['<C-e>'] = cmp.mapping.close(),
+    ['<CR>'] = cmp.mapping.confirm({
       behavior = cmp.ConfirmBehavior.Insert,
       select = true,
-    }),
+    })
   },
-
-  -- Installed sources
   sources = {
-    { name = 'path' },                              -- file paths
-    { name = 'nvim_lsp', keyword_length = 3 },      -- from language server
-    { name = 'nvim_lsp_signature_help'},            -- display function signatures with current parameter emphasized
-    { name = 'nvim_lua', keyword_length = 2},       -- complete neovim's Lua runtime API such vim.lsp.*
-    { name = 'buffer', keyword_length = 2 },        -- source current buffer
-    { name = 'vsnip', keyword_length = 2 },         -- nvim-cmp source for vim-vsnip 
-    { name = 'calc'},                               -- source for math calculation
+    { name = 'path' },
+    { name = 'nvim_lsp', keyword_length = 3 },
+    { name = 'nvim_lsp_signature_help'},
+    { name = 'nvim_lua', keyword_length = 2},
+    { name = 'buffer', keyword_length = 2 },
+    { name = 'vsnip', keyword_length = 2 },
+    { name = 'calc'},
   },
   window = {
-      completion = cmp.config.window.bordered(),
-      documentation = cmp.config.window.bordered(),
-  }
+    completion = cmp.config.window.bordered(),
+    documentation = cmp.config.window.bordered(),
+  },
+  formatting = {
+    fields = {'menu', 'abbr', 'kind'},
+    format = function(entry, item)
+      local menu_icon = {
+        nvim_lsp = 'λ',
+        vsnip = '⋗',
+        buffer = 'Ω',
+        path = '🖫',
+      }
+      item.menu = menu_icon[entry.source.name]
+      return item
+    end,
+  },
 })
-
-
