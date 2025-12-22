@@ -1,3 +1,7 @@
+-- Tell Lua language server that 'vim' is a global
+---@diagnostic disable-next-line: undefined-global
+local vim = vim
+
 -- Bootstrap lazy.nvim
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 if not (vim.uv or vim.loop).fs_stat(lazypath) then
@@ -15,6 +19,7 @@ if not (vim.uv or vim.loop).fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
+
 -- Options
 vim.opt.completeopt = {'menuone', 'noselect', 'noinsert'}
 vim.opt.shortmess = vim.opt.shortmess + { c = true}
@@ -24,6 +29,8 @@ vim.opt.relativenumber = false
 vim.opt.signcolumn = 'yes'
 vim.opt.wrap = false  -- Don't wrap lines
 vim.opt.display = 'lastline'  -- Show as much of last line as possible instead of @
+vim.opt.splitright = true  -- Vertical splits open to the right
+vim.opt.splitbelow = true  -- Horizontal splits open below (optional but recommended)
 
 -- Treesitter folding
 -- Treesitter folding (disabled by default)
@@ -95,7 +102,7 @@ require("lazy").setup({
       require("gruvbox").setup({
         terminal_colors = true,
         undercurl = true,
-        underline = true,
+        underline = false,
         bold = true,
         italic = {
           strings = true,
@@ -109,16 +116,15 @@ require("lazy").setup({
         invert_signs = false,
         invert_tabline = false,
         invert_intend_guides = false,
-        inverse = true,
+        inverse = false,
         contrast = "",
         palette_overrides = {},
         overrides = {},
         dim_inactive = false,
         transparent_mode = false,
       })
-      
+
       vim.cmd("colorscheme gruvbox")
-      
       -- Fix all highlights after colorscheme loads
       vim.cmd([[
         highlight! LineNr guifg=#928374 guibg=NONE
@@ -150,7 +156,6 @@ vim.g.rustaceanvim = {
       vim.keymap.set("n", "<C-space>", function()
         vim.cmd.RustLsp({'hover', 'actions'})
       end, { buffer = bufnr, desc = "Rust hover actions" })
-      
       vim.keymap.set("n", "<Leader>a", function()
         vim.cmd.RustLsp('codeAction')
       end, { buffer = bufnr, desc = "Rust code actions" })
@@ -161,6 +166,14 @@ vim.g.rustaceanvim = {
   },
   dap = {},
 }
+
+-- Run rustfmt on save for Rust files
+vim.api.nvim_create_autocmd("BufWritePre", {
+  pattern = "*.rs",
+  callback = function()
+    vim.lsp.buf.format({ async = false })
+  end,
+})
 
 -- LSP Diagnostics Configuration
 vim.diagnostic.config({
