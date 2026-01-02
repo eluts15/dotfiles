@@ -31,6 +31,8 @@ vim.opt.wrap = false  -- Don't wrap lines
 vim.opt.display = 'lastline'  -- Show as much of last line as possible instead of @
 vim.opt.splitright = true  -- Vertical splits open to the right
 vim.opt.splitbelow = true  -- Horizontal splits open below (optional but recommended)
+vim.opt.mouse = 'a'  -- Enable mouse support in all modes
+-- vim.opt.scrolloff = 15  -- Keep 15 lines visible above/below cursor
 
 -- Treesitter folding
 -- Treesitter folding (disabled by default)
@@ -38,6 +40,9 @@ vim.wo.foldmethod = 'expr'
 vim.wo.foldexpr = 'nvim_treesitter#foldexpr()'
 vim.opt.foldenable = false  -- Start with folds open
 vim.opt.foldlevel = 99  -- Open all folds by default
+vim.opt.mouse = 'a'  -- Enable mouse support in all modes
+
+
 -- Setup lazy.nvim
 require("lazy").setup({
   -- Mason
@@ -149,6 +154,25 @@ require("lazy").setup({
 })
 
 -- Rust Setup with rustaceanvim
+--vim.g.rustaceanvim = {
+--  tools = {},
+--  server = {
+--    on_attach = function(client, bufnr)
+--      vim.keymap.set("n", "<C-space>", function()
+--        vim.cmd.RustLsp({'hover', 'actions'})
+--      end, { buffer = bufnr, desc = "Rust hover actions" })
+--      vim.keymap.set("n", "<Leader>a", function()
+--        vim.cmd.RustLsp('codeAction')
+--      end, { buffer = bufnr, desc = "Rust code actions" })
+--    end,
+--    default_settings = {
+--      ['rust-analyzer'] = {},
+--    },
+--  },
+--  dap = {},
+--}
+
+-- Rust Setup with rustaceanvim
 vim.g.rustaceanvim = {
   tools = {},
   server = {
@@ -161,7 +185,16 @@ vim.g.rustaceanvim = {
       end, { buffer = bufnr, desc = "Rust code actions" })
     end,
     default_settings = {
-      ['rust-analyzer'] = {},
+      ['rust-analyzer'] = {
+        completion = {
+          callable = {
+            snippets = "fill_arguments",
+          },
+          postfix = {
+            enable = false,
+          },
+        },
+      },
     },
   },
   dap = {},
@@ -229,14 +262,27 @@ cmp.setup({
       select = true,
     })
   },
-  sources = {
+  sources = cmp.config.sources({
+    { name = 'nvim_lsp', keyword_length = 3, max_item_count = 20 },
+  }, {
     { name = 'path' },
-    { name = 'nvim_lsp', keyword_length = 3 },
-    { name = 'nvim_lsp_signature_help'},
     { name = 'nvim_lua', keyword_length = 2},
     { name = 'buffer', keyword_length = 2 },
     { name = 'vsnip', keyword_length = 2 },
     { name = 'calc'},
+  }),
+  sorting = {
+    comparators = {
+      cmp.config.compare.offset,
+      cmp.config.compare.exact,
+      cmp.config.compare.score,
+      cmp.config.compare.recently_used,
+      cmp.config.compare.locality,
+      cmp.config.compare.kind,
+      cmp.config.compare.sort_text,
+      cmp.config.compare.length,
+      cmp.config.compare.order,
+    },
   },
   window = {
     completion = cmp.config.window.bordered(),
@@ -256,3 +302,11 @@ cmp.setup({
     end,
   },
 })
+
+-- LSP signature help (shows function parameters as you type)
+vim.lsp.handlers["textDocument/signatureHelp"] = vim.lsp.with(
+  vim.lsp.handlers.signature_help, {
+    border = "rounded",
+    focusable = false,
+  }
+)
